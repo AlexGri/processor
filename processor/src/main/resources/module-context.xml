@@ -15,8 +15,38 @@
 		</step>
 	</job>
 
-	<bean id="reader" class="example.ExampleItemReader" />
-	<bean id="writer" class="example.ExampleItemWriter" />
+	<bean id="reader" class="org.comsoft.batch.DBFCountingItemStreamReader">
+		<property name="resource" ref="inputFile"/>
+		<property name="dbfFieldMapper" ref="dbfFieldMapper"/>
+		<property name="encode" value="Cp866"/>	
+	</bean>
+	
+	<bean id="dbfFieldMapper" class="org.comsoft.batch.support.DBFFieldMapper">
+		<property name="fieldSetMapper">
+			<bean class="org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper">
+				<property name="targetType" value="org.comsoft.domain.Insured"/>
+			</bean>
+		</property>
+		<property name="extractor" ref="dbfFieldExtractor" />
+	</bean>
+	
+	<bean id="dbfFieldExtractor" class="org.comsoft.batch.support.DBFFieldSetExtractor">
+		<property name="extractingFieldNames" value="ndoc, name, surname, sdoc"></property>
+	</bean>
+	
+	<bean id="writer" class="org.springframework.batch.item.file.FlatFileItemWriter" scope="step">
+		<property name="resource" ref="outputFile" />
+		<property name="lineAggregator">
+			<bean class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">
+				<property name="delimiter" value=";"/>
+				<property name="fieldExtractor">
+					<bean class="org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor">
+						<property name="names" value="name, surname, ein, ndoc"/>					
+					</bean>
+				</property>
+			</bean>
+		</property>
+	</bean>
 	
 	<!-- enables the functionality of JobOperator.startNextInstance(jobName) -->
 	<bean id="jobParametersIncrementer" class="org.springframework.batch.core.launch.support.RunIdIncrementer" />
@@ -27,7 +57,51 @@
 		<property name="transactionManager" ref="transactionManager" />
 		<property name="jobRepository" ref="jobRepository" />
 		<property name="startLimit" value="100" />
-		<property name="commitInterval" value="1" />
+		<property name="commitInterval" value="1000" />
+	</bean>
+	
+	<bean id="inputFile" class="org.springframework.core.io.FileSystemResource" scope="step">
+		<constructor-arg value="#{jobParameters[inputFile]}"/>
+	</bean>
+
+	<bean id="outputFile" class="org.springframework.core.io.FileSystemResource" scope="step">
+		<constructor-arg value="#{jobParameters[outputFile]}"/>
+	</bean>
+	
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+		<property name="driverClassName" value="${batch.jdbc.driver}" />
+		<property name="url" value="${batch.jdbc.url}" />
+		<property name="username" value="${batch.jdbc.user}" />
+		<property name="password" value="${batch.jdbc.password}" />
+	</bean>
+
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager" lazy-init="true">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+	
+	<bean id="jobRepository"
+		class="org.springframework.batch.core.repository.support.JobRepositoryFactoryBean">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="transactionManager" ref="transactionManager"/>
+	</bean>
+	
+	<bean id="jobLauncher"
+		class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+		<property name="jobRepository" ref="jobRepository" />
+		<property name="taskExecutor" ref="taskExecutor"/>
+	</bean>
+	
+	<bean id="taskExecutor" class="org.springframework.core.task.SyncTaskExecutor">
+	</bean>
+    <bean id="jobExplorer" 	class="org.springframework.batch.core.explore.support.JobExplorerFactoryBean">
+    	<property name="dataSource" ref="dataSource"/>
+    </bean>
+	
+	<bean id="placeholderProperties" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="location" value="classpath:batch.properties" />
+		<property name="systemPropertiesModeName" value="SYSTEM_PROPERTIES_MODE_OVERRIDE" />
+		<property name="ignoreUnresolvablePlaceholders" value="true" />
+		<property name="order" value="1" />
 	</bean>
 
 </beans>

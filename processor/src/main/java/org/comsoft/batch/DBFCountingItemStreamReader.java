@@ -1,24 +1,21 @@
 package org.comsoft.batch;
 
-import java.util.List;
-
-import org.comsoft.dbf.DBFFieldMapper;
-import org.comsoft.dbf.FixDBF;
+import org.comsoft.batch.support.DBFFieldMapperIF;
 import org.springframework.batch.item.support.AbstractItemCountingItemStreamItemReader;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.io.Resource;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.xBaseJ.DBF;
 
 public class DBFCountingItemStreamReader<T> extends
-		AbstractItemCountingItemStreamItemReader<T> {
+		AbstractItemCountingItemStreamItemReader<T> implements InitializingBean{
 	
-	private FixDBF dbf;
+	private DBF dbf;
 	
 	private Resource resource;
 	
-	private DBFFieldMapper<T> dbfFieldMapper;
-	
-	private List<String> selectingFields;
+	private DBFFieldMapperIF<T> dbfFieldMapper;
 	
 	private String encode = DBF.encodedType;
 	
@@ -32,12 +29,12 @@ public class DBFCountingItemStreamReader<T> extends
 		this.encode = encode;
 	}	
 
-	public void setDbfFieldMapper(DBFFieldMapper<T> dbfFieldMapper) {
+	public void setDbfFieldMapper(DBFFieldMapperIF<T> dbfFieldMapper) {
 		this.dbfFieldMapper = dbfFieldMapper;
 	}
 	
-	public void setSelectingFields(List<String> selectingFields) {
-		this.selectingFields = selectingFields;
+	public DBFCountingItemStreamReader() {
+		setName(ClassUtils.getShortName(DBFCountingItemStreamReader.class));
 	}
 
 	@Override
@@ -46,7 +43,7 @@ public class DBFCountingItemStreamReader<T> extends
 			return null;
 		}
 		dbf.read();
-		return dbfFieldMapper.mapFields(dbf.getFieldSet(selectingFields));
+		return dbfFieldMapper.mapDBF(dbf);
 	}
 	
 	@Override
@@ -68,7 +65,8 @@ public class DBFCountingItemStreamReader<T> extends
 			throw new IllegalStateException("Input resource must be readable: " + resource);
 		}
 
-		dbf = new FixDBF(resource.getFile().getAbsolutePath(), DBF.READ_ONLY, encode);
+		dbf = new DBF(resource.getFile().getAbsolutePath(), DBF.READ_ONLY, encode);
+		setMaxItemCount(dbf.getRecordCount());
 		noInput = false;
 	}
 
@@ -76,5 +74,10 @@ public class DBFCountingItemStreamReader<T> extends
 	protected void doClose() throws Exception {
 		dbf.close();
 		dbf = null;
+	}
+
+	@Override
+	public void afterPropertiesSet() throws Exception {
+		Assert.notNull(dbfFieldMapper, "mapper must be set");		
 	}
 }
